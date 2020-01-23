@@ -1,0 +1,16 @@
+// Archive task: Request Validator
+// Generated for 2020-01-24
+
+type EventPayload = {
+  id: string;
+  createdAt: string;
+  value: number;
+};
+
+export function normalisePayload(payload: EventPayload): EventPayload {
+  return {
+    id: payload.id.trim().toLowerCase(),
+    createdAt: new Date(payload.createdAt).toISOString(),
+    value: Number.isFinite(payload.value) ? payload.value : 0,
+  };
+}
