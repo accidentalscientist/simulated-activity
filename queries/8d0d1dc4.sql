@@ -1,1 +1,0 @@
-SELECT * FROM customers WHERE signup_date > CURRENT_DATE - INTERVAL '30 days';

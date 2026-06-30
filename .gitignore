@@ -13,6 +13,7 @@ venv/
 *.csv
 *.xlsx
 *.json
+!manifests/*.csv
 
 # Logs or outputs
 *.log
