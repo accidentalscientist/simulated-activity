@@ -58,6 +58,12 @@ Print summary statistics:
 python tools/planned_activity_generator.py --dry-run --summary
 ```
 
+Generate a one-month pilot manifest:
+
+```bash
+python tools/planned_activity_generator.py --dry-run --summary --start-date 2020-01-01 --end-date 2020-01-31 --manifest manifests/pilot_january_2020.csv
+```
+
 ## Execution
 
 The tool is deliberately cautious. Writing files and commits is separate from planning. Review the manifest before running anything that writes history.
@@ -67,3 +73,9 @@ python tools/planned_activity_generator.py --dry-run --manifest manifests/activi
 ```
 
 The execution mode should be run only on a disposable branch after reviewing the manifest.
+
+For a pilot branch:
+
+```bash
+python tools/planned_activity_generator.py --execute --i-understand-this-writes-git-history --start-date 2020-01-01 --end-date 2020-01-31 --manifest manifests/pilot_january_2020.csv
+```

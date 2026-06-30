@@ -35,3 +35,7 @@ Before execution, check:
 - repeated file paths
 - commit messages for tone and variety
 - disclosure language in the README
+
+## Pilot Windows
+
+Use `--start-date` and `--end-date` to generate a smaller review window before writing the full archive. The full plan is generated first and then filtered, which keeps the pilot consistent with the larger 2020-2025 sequence.

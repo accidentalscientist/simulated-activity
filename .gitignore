@@ -14,6 +14,7 @@ venv/
 *.xlsx
 *.json
 !manifests/*.csv
+manifests/pilot_*.csv
 
 # Logs or outputs
 *.log

@@ -257,9 +257,31 @@ def write_manifest(entries: list[PlanEntry], manifest_path: Path) -> None:
             writer.writerow(asdict(entry))
 
 
-def summarize(entries: list[PlanEntry]) -> dict[str, object]:
+def parse_date(value: str) -> date:
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"Expected YYYY-MM-DD, got {value!r}") from exc
+    if parsed < START_DATE or parsed > END_DATE:
+        raise argparse.ArgumentTypeError(
+            f"Date must be between {START_DATE.isoformat()} and {END_DATE.isoformat()}"
+        )
+    return parsed
+
+
+def filter_entries(entries: list[PlanEntry], start_date: date, end_date: date) -> list[PlanEntry]:
+    if start_date > end_date:
+        raise SystemExit("--start-date cannot be later than --end-date")
+    return [
+        entry
+        for entry in entries
+        if start_date <= date.fromisoformat(entry.date) <= end_date
+    ]
+
+
+def summarize(entries: list[PlanEntry], start_date: date, end_date: date) -> dict[str, object]:
     active_dates = {entry.date for entry in entries}
-    total_days = sum(1 for _ in iter_days(START_DATE, END_DATE))
+    total_days = sum(1 for _ in iter_days(start_date, end_date))
     by_year: dict[str, int] = {}
     by_track: dict[str, int] = {}
     monthly_zero_days: dict[str, int] = {}
@@ -268,22 +290,24 @@ def summarize(entries: list[PlanEntry]) -> dict[str, object]:
         by_year[entry.date[:4]] = by_year.get(entry.date[:4], 0) + 1
         by_track[entry.track] = by_track.get(entry.track, 0) + 1
 
-    for year in range(START_DATE.year, END_DATE.year + 1):
+    for year in range(start_date.year, end_date.year + 1):
         for month in range(1, 13):
             label = f"{year}-{month:02d}"
-            days = [day for day in month_days(year, month) if START_DATE <= day <= END_DATE]
+            days = [day for day in month_days(year, month) if start_date <= day <= end_date]
+            if not days:
+                continue
             monthly_zero_days[label] = sum(1 for day in days if day.isoformat() not in active_dates)
 
     return {
-        "range": f"{START_DATE.isoformat()} to {END_DATE.isoformat()}",
+        "range": f"{start_date.isoformat()} to {end_date.isoformat()}",
         "total_days": total_days,
         "active_days": len(active_dates),
         "zero_commit_days": total_days - len(active_dates),
         "planned_commits": len(entries),
         "commits_by_year": dict(sorted(by_year.items())),
         "commits_by_track": dict(sorted(by_track.items())),
-        "monthly_zero_days_min": min(monthly_zero_days.values()),
-        "monthly_zero_days_max": max(monthly_zero_days.values()),
+        "monthly_zero_days_min": min(monthly_zero_days.values()) if monthly_zero_days else 0,
+        "monthly_zero_days_max": max(monthly_zero_days.values()) if monthly_zero_days else 0,
     }
 
 
@@ -473,6 +497,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Plan a generated long-range code archive.")
     parser.add_argument("--manifest", type=Path, default=Path("manifests/activity_manifest_2020_2025.csv"))
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--start-date", type=parse_date, default=START_DATE)
+    parser.add_argument("--end-date", type=parse_date, default=END_DATE)
     parser.add_argument("--dry-run", action="store_true", help="Write or inspect a manifest without touching Git.")
     parser.add_argument("--summary", action="store_true", help="Print summary statistics.")
     parser.add_argument("--write-files", action="store_true", help="Write files from the plan without committing.")
@@ -487,11 +513,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    entries = plan_entries(args.seed)
+    entries = filter_entries(plan_entries(args.seed), args.start_date, args.end_date)
     write_manifest(entries, args.manifest)
 
     if args.summary:
-        print(json.dumps(summarize(entries), indent=2))
+        print(json.dumps(summarize(entries, args.start_date, args.end_date), indent=2))
 
     if args.write_files:
         repo_root = Path.cwd()
