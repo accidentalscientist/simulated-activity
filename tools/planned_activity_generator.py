@@ -313,6 +313,8 @@ def summarize(entries: list[PlanEntry], start_date: date, end_date: date) -> dic
 
 def content_for(entry: PlanEntry) -> str:
     title = entry.task_title.title()
+    if entry.track == "market_forecasting" and entry.content_type == "report":
+        return market_report_content(entry, title)
     if entry.language == "python":
         return python_content(entry, title)
     if entry.language == "sql":
@@ -327,114 +329,375 @@ def content_for(entry: PlanEntry) -> str:
 
 
 def python_content(entry: PlanEntry, title: str) -> str:
+    if entry.track == "market_forecasting":
+        return market_python_content(entry, title)
+    if entry.task_title == "csv deduplication helper":
+        body = '''from collections.abc import Iterable
+
+
+def deduplicate_records(records: Iterable[dict], keys: tuple[str, ...]) -> list[dict]:
+    seen = set()
+    unique = []
+    for record in records:
+        signature = tuple(record.get(key) for key in keys)
+        if signature in seen:
+            continue
+        seen.add(signature)
+        unique.append(record)
+    return unique
+'''
+    elif entry.task_title == "log parser summary":
+        body = '''from collections import Counter
+
+
+def summarise_status_codes(lines: list[str]) -> dict[str, int]:
+    counts = Counter()
+    for line in lines:
+        parts = line.split()
+        if len(parts) >= 2:
+            counts[parts[-1]] += 1
+    return dict(counts)
+'''
+    elif entry.task_title == "feature scaling utility":
+        body = '''def min_max_scale(values: list[float]) -> list[float]:
+    if not values:
+        return []
+    low, high = min(values), max(values)
+    if high == low:
+        return [0.0 for _ in values]
+    return [(value - low) / (high - low) for value in values]
+'''
+    elif entry.task_title == "unit tests for edge cases":
+        body = '''import unittest
+
+
+def clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(high, value))
+
+
+class EdgeCaseTests(unittest.TestCase):
+    def test_clamps_below_range(self):
+        self.assertEqual(clamp(-4, 0, 10), 0)
+
+    def test_clamps_above_range(self):
+        self.assertEqual(clamp(18, 0, 10), 10)
+
+
+if __name__ == "__main__":
+    unittest.main()
+'''
+    else:
+        body = '''from statistics import median
+
+
+def rolling_median(values: list[float], window: int) -> list[float]:
+    if window <= 0:
+        raise ValueError("window must be positive")
+    return [median(values[index:index + window]) for index in range(len(values) - window + 1)]
+'''
     return f'''"""Archive task: {title}.
 
 Generated for {entry.date}. The implementation is intentionally compact so each
 commit can stand alone as a small learning artefact.
 """
 
-from statistics import mean
+{body}'''
 
 
-def rolling_average(values, window):
-    if window <= 0:
-        raise ValueError("window must be positive")
-    return [mean(values[index:index + window]) for index in range(len(values) - window + 1)]
-
-
-if __name__ == "__main__":
-    sample = [3, 5, 8, 13, 21, 34]
-    print(rolling_average(sample, 3))
+def market_python_content(entry: PlanEntry, title: str) -> str:
+    if "Evera Lithium" in entry.task_title:
+        body = '''def build_lithium_factor_set(prices, volumes, benchmark):
+    return {
+        "momentum_20": prices[-1] / prices[-20] - 1,
+        "volume_ratio": volumes[-5] / max(sum(volumes[-20:]) / 20, 1),
+        "benchmark_spread": prices[-1] / benchmark[-1] - 1,
+    }
 '''
+    elif "Aussie Broadband" in entry.task_title:
+        body = '''def fit_baseline_forecast(history: list[float], horizon: int = 5) -> list[float]:
+    slope = (history[-1] - history[0]) / max(len(history) - 1, 1)
+    return [history[-1] + slope * step for step in range(1, horizon + 1)]
+'''
+    elif "Origin Energy" in entry.task_title:
+        body = '''def rolling_volatility(values: list[float], window: int = 20) -> list[float]:
+    returns = [(values[i] / values[i - 1]) - 1 for i in range(1, len(values))]
+    output = []
+    for index in range(len(returns) - window + 1):
+        sample = returns[index:index + window]
+        mean = sum(sample) / window
+        output.append((sum((value - mean) ** 2 for value in sample) / window) ** 0.5)
+    return output
+'''
+    else:
+        body = '''def compare_forecasts(actual, baselines: dict[str, list[float]]) -> dict[str, float]:
+    scores = {}
+    for name, prediction in baselines.items():
+        error = sum(abs(a - p) for a, p in zip(actual, prediction)) / len(actual)
+        scores[name] = error
+    return dict(sorted(scores.items(), key=lambda item: item[1]))
+'''
+    return f'''"""Archive task: {title}.
+
+Generated for {entry.date}. This synthetic market research code is educational
+only and is not financial advice.
+"""
+
+{body}'''
+
+
+def market_report_content(entry: PlanEntry, title: str) -> str:
+    return f"""# {title}
+
+Generated for {entry.date}.
+
+This note records assumptions for a synthetic market-forecasting exercise. It
+does not provide financial advice and should not be used for investment
+decisions.
+
+## Assumptions
+
+- Inputs are treated as historical observations, not live prices.
+- Forecasts are compared against simple momentum and mean-reversion baselines.
+- Model quality is judged with backtesting error rather than narrative appeal.
+- Evera Lithium, Aussie Broadband, and Origin Energy are handled as separate
+  series before any cross-asset comparison.
+"""
 
 
 def sql_content(entry: PlanEntry, title: str) -> str:
+    if entry.content_type == "schema":
+        return f"""-- Archive task: {title}
+-- Generated for {entry.date}
+
+CREATE TABLE experiment_metrics (
+    experiment_id TEXT NOT NULL,
+    variant TEXT NOT NULL,
+    metric_date DATE NOT NULL,
+    visitors INTEGER NOT NULL,
+    conversions INTEGER NOT NULL,
+    revenue NUMERIC(12, 2),
+    PRIMARY KEY (experiment_id, variant, metric_date)
+);
+"""
+    if entry.task_title == "monthly revenue rollup":
+        query = """SELECT
+    DATE_TRUNC('month', invoice_date) AS revenue_month,
+    SUM(amount) AS gross_revenue,
+    COUNT(DISTINCT customer_id) AS paying_customers
+FROM invoices
+GROUP BY DATE_TRUNC('month', invoice_date)
+ORDER BY revenue_month;"""
+    elif entry.task_title == "customer cohort retention":
+        query = """WITH first_seen AS (
+    SELECT customer_id, MIN(DATE_TRUNC('month', event_date)) AS cohort_month
+    FROM product_events
+    GROUP BY customer_id
+),
+activity AS (
+    SELECT customer_id, DATE_TRUNC('month', event_date) AS activity_month
+    FROM product_events
+    GROUP BY customer_id, DATE_TRUNC('month', event_date)
+)
+SELECT
+    first_seen.cohort_month,
+    activity.activity_month,
+    COUNT(*) AS retained_customers
+FROM first_seen
+JOIN activity USING (customer_id)
+GROUP BY first_seen.cohort_month, activity.activity_month;"""
+    elif entry.task_title == "windowed churn analysis":
+        query = """SELECT
+    customer_id,
+    activity_month,
+    active_days,
+    LAG(active_days) OVER (
+        PARTITION BY customer_id
+        ORDER BY activity_month
+    ) AS previous_active_days
+FROM monthly_customer_activity
+WHERE active_days = 0;"""
+    else:
+        query = """WITH ranked_orders AS (
+    SELECT
+        customer_id,
+        order_id,
+        order_total,
+        ROW_NUMBER() OVER (
+            PARTITION BY customer_id
+            ORDER BY order_total DESC
+        ) AS order_rank
+    FROM orders
+)
+SELECT customer_id, order_id, order_total
+FROM ranked_orders
+WHERE order_rank <= 3;"""
     return f"""-- Archive task: {title}
 -- Generated for {entry.date}
 
-WITH monthly_activity AS (
-    SELECT
-        customer_id,
-        DATE_TRUNC('month', event_date) AS activity_month,
-        COUNT(*) AS event_count
-    FROM product_events
-    GROUP BY customer_id, DATE_TRUNC('month', event_date)
-),
-ranked_activity AS (
-    SELECT
-        customer_id,
-        activity_month,
-        event_count,
-        LAG(event_count) OVER (
-            PARTITION BY customer_id
-            ORDER BY activity_month
-        ) AS previous_event_count
-    FROM monthly_activity
-)
-SELECT *
-FROM ranked_activity
-WHERE event_count >= COALESCE(previous_event_count, 0);
+{query}
 """
 
 
 def rust_content(entry: PlanEntry, title: str) -> str:
-    return f"""// Archive task: {title}
-// Generated for {entry.date}
-
-pub fn bounded_sum(values: &[i64], limit: i64) -> i64 {{
-    values
-        .iter()
-        .copied()
-        .filter(|value| *value <= limit)
-        .sum()
-}}
+    if entry.task_title == "fast line counter":
+        body = '''pub fn count_lines(input: &str) -> usize {
+    input.lines().count()
+}
 
 #[cfg(test)]
-mod tests {{
+mod tests {
     use super::*;
 
     #[test]
-    fn sums_values_under_limit() {{
-        assert_eq!(bounded_sum(&[2, 5, 8, 13], 8), 15);
-    }}
-}}
-"""
+    fn counts_lines() {
+        assert_eq!(count_lines("a\\nb\\nc"), 3);
+    }
+}
+'''
+    elif entry.task_title == "graph traversal":
+        body = '''use std::collections::{HashMap, HashSet, VecDeque};
 
+pub fn reachable(graph: &HashMap<&str, Vec<&str>>, start: &str) -> HashSet<String> {
+    let mut seen = HashSet::new();
+    let mut queue = VecDeque::from([start]);
+    while let Some(node) = queue.pop_front() {
+        if seen.insert(node.to_string()) {
+            if let Some(neighbours) = graph.get(node) {
+                queue.extend(neighbours.iter().copied());
+            }
+        }
+    }
+    seen
+}
+'''
+    elif entry.task_title == "config parser":
+        body = '''pub fn parse_pairs(input: &str) -> Vec<(&str, &str)> {
+    input
+        .lines()
+        .filter_map(|line| line.split_once('='))
+        .map(|(key, value)| (key.trim(), value.trim()))
+        .collect()
+}
+'''
+    else:
+        body = '''use std::collections::VecDeque;
 
-def typescript_content(entry: PlanEntry, title: str) -> str:
+pub struct BoundedQueue<T> {
+    limit: usize,
+    values: VecDeque<T>,
+}
+
+impl<T> BoundedQueue<T> {
+    pub fn new(limit: usize) -> Self {
+        Self { limit, values: VecDeque::new() }
+    }
+
+    pub fn push(&mut self, value: T) {
+        if self.values.len() == self.limit {
+            self.values.pop_front();
+        }
+        self.values.push_back(value);
+    }
+}
+'''
     return f"""// Archive task: {title}
 // Generated for {entry.date}
 
-type EventPayload = {{
+{body}"""
+
+
+def typescript_content(entry: PlanEntry, title: str) -> str:
+    if entry.task_title == "request validator":
+        body = '''type RequestBody = { email?: string; amount?: number };
+
+export function validateRequest(body: RequestBody): string[] {
+  const errors: string[] = [];
+  if (!body.email?.includes("@")) errors.push("email is invalid");
+  if (body.amount === undefined || body.amount <= 0) errors.push("amount must be positive");
+  return errors;
+}
+'''
+    elif entry.task_title == "typed api client":
+        body = '''type ApiResponse<T> = { data: T; status: number };
+
+export async function getJson<T>(url: string): Promise<ApiResponse<T>> {
+  const response = await fetch(url);
+  return { data: await response.json() as T, status: response.status };
+}
+'''
+    elif entry.task_title == "date range guard":
+        body = '''export function isWithinRange(value: Date, start: Date, end: Date): boolean {
+  return value.getTime() >= start.getTime() && value.getTime() <= end.getTime();
+}
+'''
+    else:
+        body = '''type EventPayload = {
   id: string;
   createdAt: string;
   value: number;
-}};
+};
 
-export function normalisePayload(payload: EventPayload): EventPayload {{
-  return {{
+export function normalisePayload(payload: EventPayload): EventPayload {
+  return {
     id: payload.id.trim().toLowerCase(),
     createdAt: new Date(payload.createdAt).toISOString(),
     value: Number.isFinite(payload.value) ? payload.value : 0,
-  }};
-}}
-"""
+  };
+}
+'''
+    return f"""// Archive task: {title}
+// Generated for {entry.date}
+
+{body}"""
 
 
 def go_content(entry: PlanEntry, title: str) -> str:
+    if entry.task_title == "worker pool":
+        body = '''func RunJobs(jobs []func() int) []int {
+	results := make([]int, 0, len(jobs))
+	for _, job := range jobs {
+		results = append(results, job())
+	}
+	return results
+}
+'''
+    elif entry.task_title == "json stream parser":
+        body = '''import "encoding/json"
+
+func DecodeObjects(data []byte, target any) error {
+	return json.Unmarshal(data, target)
+}
+'''
+    elif entry.task_title == "health check service":
+        body = '''type HealthCheck struct {
+	Name string
+	OK   bool
+}
+
+func OverallStatus(checks []HealthCheck) bool {
+	for _, check := range checks {
+		if !check.OK {
+			return false
+		}
+	}
+	return true
+}
+'''
+    else:
+        body = '''func SumByKey(rows []map[string]int, key string) int {
+	total := 0
+	for _, row := range rows {
+		total += row[key]
+	}
+	return total
+}
+'''
     return f"""// Archive task: {title}
 // Generated for {entry.date}
 
 package archive
 
-func SumByKey(rows []map[string]int, key string) int {{
-	total := 0
-	for _, row := range rows {{
-		total += row[key]
-	}}
-	return total
-}}
-"""
+{body}"""
 
 
 def notebook_content(entry: PlanEntry, title: str) -> str:

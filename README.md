@@ -74,8 +74,28 @@ python tools/planned_activity_generator.py --dry-run --manifest manifests/activi
 
 The execution mode should be run only on a disposable branch after reviewing the manifest.
 
+The full 2020-2025 archive plan currently contains:
+
+- 7,291 planned commits
+- 2,082 active days
+- 110 zero-commit days
+- 1 or 2 zero-commit days in every month
+- a code mix across Python, SQL, Rust, TypeScript, Go, notebooks, and synthetic market-forecasting artefacts
+
+The recommended full-run branch is:
+
+```text
+codex/full-archive-2020-2025
+```
+
 For a pilot branch:
 
 ```bash
 python tools/planned_activity_generator.py --execute --i-understand-this-writes-git-history --start-date 2020-01-01 --end-date 2020-01-31 --manifest manifests/pilot_january_2020.csv
+```
+
+For the full archive branch:
+
+```bash
+python tools/planned_activity_generator.py --execute --i-understand-this-writes-git-history --manifest manifests/activity_manifest_2020_2025.csv
 ```
